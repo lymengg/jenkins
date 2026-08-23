@@ -1,0 +1,85 @@
+jenkins:
+  systemMessage: "Jenkins configured with Configuration as Code"
+  numExecutors: 0
+  mode: EXCLUSIVE
+  
+  # Security settings
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: admin
+          # Password should be set via environment variable or secret
+          # Do not commit real passwords to Git
+          password: "${JENKINS_ADMIN_PASSWORD:-admin}"
+  
+  authorizationStrategy:
+    roleBased:
+      roles:
+        global:
+          - name: "admin"
+            permissions: ["Overall/Administer"]
+            entries:
+              - group: "admins"
+          - name: "readonly"
+            permissions: ["Overall/Read", "Job/Read"]
+            entries:
+              - group: "users"
+        project:
+          - name: "admin"
+            permissions: ["Job/Configure", "Job/Build", "Job/Read", "Job/Workspace"]
+            entries:
+              - group: "admins"
+  
+  # Node configuration
+  nodes:
+    - permanent:
+        name: "built-in"
+        numExecutors: 0
+        remoteFS: "/var/jenkins_home"
+        labels: "built-in"
+  
+  # Script security
+  scriptApproval:
+    mode: "systemTasks"
+
+unclassified:
+  # Global properties
+  globalProperties:
+    envVars:
+      env:
+        - key: "JENKINS_VERSION"
+          value: "${JENKINS_VERSION:-2.462.1}"
+  
+  # Location configuration
+  location:
+    adminAddress: "${JENKINS_ADMIN_EMAIL:-admin@example.com}"
+    url: "${JENKINS_URL:-http://localhost:8080/"
+
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - usernamePassword:
+              scope: GLOBAL
+              id: "git-credentials"
+              username: "${GIT_USERNAME}"
+              password: "${GIT_PASSWORD}"
+              description: "Git credentials for SCM"
+
+jobs:
+  - script: |
+      multibranchPipelineJob('example-pipeline') {
+        branchSources {
+          git {
+            id('example-pipeline')
+            remote('https://github.com/example/repo.git')
+            credentialsId('git-credentials')
+          }
+        }
+        orphanedItemStrategy {
+          discardOldItems {
+            numToKeep(10)
+          }
+        }
+      }

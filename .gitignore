@@ -1,0 +1,35 @@
+# Environment files
+.env
+
+# Jenkins home directory (persistent data)
+jenkins_home/
+
+# Backup files
+backup/*.tar.gz
+backup/*.tar.bz2
+backup/*.zip
+
+# Secrets and credentials
+*.pem
+*.key
+*.cert
+*.crt
+secrets/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker compose override
+docker-compose.override.yml
+
+# Logs
+*.log
+logs/
