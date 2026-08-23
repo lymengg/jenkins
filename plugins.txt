@@ -1,0 +1,48 @@
+# Jenkins Plugins
+# Minimal set for Pipeline, Git, Credentials, JCasC, and Agent management
+# Pin versions for reproducibility - update carefully in production
+
+# Pipeline plugins
+pipeline-model-definition:2.217
+pipeline-stage-step:305
+workflow-basic-steps:2.25
+workflow-durable-task-step:2.28
+workflow-job:1316
+workflow-multibranch:2.27
+workflow-scm-step:415
+workflow-step-api:657
+
+# Git plugins
+git:5.2.2
+git-client:4.7.0
+
+# Credentials plugins
+credentials:1337.vb_c3e5f013a_38
+credentials-binding:646.v08a_065823888
+
+# Configuration as Code
+configuration-as-code:1775.v810dc950b_514
+
+# Agent management
+remote-file:126.v0a_21c14b_8c07
+
+# Job DSL
+job-dsl:1.81
+
+# Blue Ocean (optional - remove if not needed for UI)
+blueocean:1.27.14
+
+# SSH Agent (for SSH-based build agents)
+ssh-agent:346.vd86c2255c828
+
+# Docker Pipeline (for Docker-based builds)
+docker-workflow:572.v950f58993843
+
+# Pipeline Utility Steps
+pipeline-utility-steps:2.16.2
+
+# Timestamper (for build logs)
+timestamper:1.26
+
+# Workspace Cleanup
+ws-cleanup:0.45

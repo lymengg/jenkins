@@ -1,0 +1,2 @@
+# This directory is used to store Jenkins backups
+# Backups should be copied to external/object storage for production use

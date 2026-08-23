@@ -1,0 +1,33 @@
+services:
+  jenkins:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: jenkins-infrastructure:latest
+    container_name: jenkins-controller
+    restart: unless-stopped
+    ports:
+      - "${JENKINS_PORT:-8080}:8080"
+      - "${JENKINS_AGENT_PORT:-50000}:50000"
+    environment:
+      - JENKINS_OPTS=${JENKINS_JAVA_OPTS:--Djava.awt.headless=true -Xmx2048m -Xms512m}
+      - JAVA_OPTS=${JENKINS_JAVA_OPTS:--Djava.awt.headless=true -Xmx2048m -Xms512m}
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - ./casc/jenkins.yaml:/var/jenkins_home/casc_configs/jenkins.yaml:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - jenkins
+
+volumes:
+  jenkins_home:
+    driver: local
+
+networks:
+  jenkins:
+    driver: bridge
