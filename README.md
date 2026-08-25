@@ -128,7 +128,7 @@ See [docs/upgrade.md](docs/upgrade.md) for detailed upgrade procedures.
 ### Quick Upgrade Steps
 
 1. Review Jenkins release notes and security advisories
-2. Update `JENKINS_IMAGE_TAG` in `.env` (e.g. `2.462.1-jdk17` → `2.462.2-jdk17`)
+2. Update `JENKINS_IMAGE_TAG` in `.env` (e.g. `2.568.2-jdk21` → `2.578.1-jdk21`)
 3. Test in non-production environment
 4. Create backup: `./scripts/backup.sh`
 5. Deploy: `docker compose up -d`

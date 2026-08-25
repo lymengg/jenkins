@@ -38,12 +38,31 @@
 ./scripts/backup.sh
 ```
 
+### Authenticated Backup (Required After Setup Wizard)
+
+After completing the Jenkins setup wizard, security is enabled and the
+backup/restore scripts need credentials to call the Jenkins API (quietDown,
+safeExit). Set these in `.env`:
+
+```env
+JENKINS_USER=admin
+JENKINS_API_TOKEN=<your-api-token>
+```
+
+Create an API token in Jenkins: **User > Configure > API Token**.
+
+Without auth, the script will skip quiet down mode and warn (backups still work,
+but may capture inconsistent state if builds are running).
+
 ### Backup Process
 
-1. Checks if Jenkins container is running
-2. Creates tarball of Jenkins home directory
-3. Stores backup with timestamp filename
-4. Cleans up old backups based on retention policy
+1. Acquires a lock to prevent concurrent backups
+2. Checks if Jenkins container is running
+3. Puts Jenkins into quiet down mode (pauses new builds for consistency)
+4. Creates tarball of Jenkins home directory
+5. Verifies backup integrity (tar validation)
+6. Resumes Jenkins (cancels quiet down)
+7. Cleans up old backups based on retention policy
 
 ### Backup File Format
 
@@ -80,21 +99,25 @@ du -h backup/jenkins-2024-01-01-120000.tar.gz
 
 ### Restore Safety Features
 
-1. **Confirmation Prompt**: Requires explicit confirmation
-2. **Safety Backup**: Creates backup of current state before restore
-3. **Graceful Shutdown**: Stops Jenkins cleanly before restore
-4. **Permission Fixing**: Ensures correct file ownership
+1. **Integrity Check**: Verifies backup file is a valid tar.gz before proceeding
+2. **Confirmation Prompt**: Requires explicit confirmation
+3. **Safety Backup**: Creates backup of current state before restore (aborts if this fails)
+4. **Graceful Shutdown**: Stops Jenkins cleanly via HTTP API before restore
+5. **Permission Fixing**: Ensures correct file ownership (UID 1000)
+6. **Post-Restore Verification**: Waits for Jenkins to respond after restart
 
 ### Restore Process Steps
 
-1. Validate backup file exists
+1. Verify backup file integrity (tar validation)
 2. Check container is running
-3. Prompt for confirmation (unless `-y` used)
-4. Stop Jenkins gracefully
-5. Create safety backup
-6. Restore backup to Jenkins home
-7. Fix file permissions
-8. Start Jenkins
+3. Resolve Docker volume name
+4. Prompt for confirmation (unless `-y` used)
+5. Create safety backup (aborts on failure)
+6. Stop Jenkins gracefully via HTTP API
+7. Restore backup to Jenkins home
+8. Fix file permissions
+9. Start Jenkins
+10. Wait for Jenkins to respond
 
 ### Important Warnings
 
@@ -108,18 +131,23 @@ du -h backup/jenkins-2024-01-01-120000.tar.gz
 ### Test Backup Integrity
 
 ```bash
+# Interactive mode (keeps test instance running for 5 minutes for manual verification)
 ./scripts/restore-test.sh -f backup/jenkins-2024-01-01-120000.tar.gz
+
+# CI/automation mode (cleans up immediately after verification)
+./scripts/restore-test.sh -f backup/jenkins-2024-01-01-120000.tar.gz --no-wait
 ```
 
 ### What Restore Test Does
 
-1. Creates isolated test environment
-2. Creates separate Docker volume
-3. Restores backup to test volume
-4. Starts Jenkins test instance
-5. Performs health checks
-6. Verifies functionality
-7. Cleans up test environment
+1. Verifies backup file integrity (tar validation)
+2. Checks test ports are available
+3. Creates isolated test environment with unique volume/container names
+4. Restores backup to test volume
+5. Starts Jenkins test instance
+6. Waits for Jenkins to respond
+7. Performs health checks (HTTP, config, plugins, jobs, API)
+8. Cleans up test environment
 
 ### Restore Test Verification
 

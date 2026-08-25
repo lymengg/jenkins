@@ -1,6 +1,6 @@
 services:
   jenkins:
-    image: jenkins/jenkins:${JENKINS_IMAGE_TAG:-2.462.1-jdk17}
+    image: jenkins/jenkins:${JENKINS_IMAGE_TAG:-2.568.2-jdk21}
     container_name: jenkins
     restart: unless-stopped
     ports:

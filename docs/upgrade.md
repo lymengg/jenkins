@@ -31,10 +31,12 @@ Since plugins are UI-managed (not pinned in Git), upgrading Jenkins only require
 ### 4. Update Jenkins Version
 
 1. Edit `.env` file
-2. Update `JENKINS_IMAGE_TAG` to the new tag (e.g. `2.462.1-jdk17` → `2.462.2-jdk17`)
+2. Update `JENKINS_IMAGE_TAG` to the new tag (e.g. `2.568.2-jdk21` → `2.578.1-jdk21`)
    - This variable is used as the image tag in `docker-compose.yml`
    - Verify the tag exists on Docker Hub: https://hub.docker.com/r/jenkins/jenkins/tags
 3. Verify Java version compatibility (the JDK in the tag must be supported by the Jenkins version)
+   - Jenkins 2.568+ requires Java 21 (jdk17 images are no longer published)
+   - Older LTS versions may support jdk17
 
 ### 5. Commit Changes
 
@@ -155,7 +157,7 @@ docker compose up -d
 ### Java Version
 
 - Jenkins LTS versions have specific Java requirements
-- The JDK is encoded in `JENKINS_IMAGE_TAG` (e.g. `2.462.1-jdk17`, `2.462.1-jdk21`)
+- The JDK is encoded in `JENKINS_IMAGE_TAG` (e.g. `2.568.2-jdk21`, `2.578.1-jdk21`)
 - Check Java compatibility before upgrading
 
 ### Plugin Compatibility

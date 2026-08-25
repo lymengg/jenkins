@@ -205,7 +205,7 @@ deploy:
 
 See `.env.example` for the full list. Key variables:
 
-- `JENKINS_IMAGE_TAG`: Full base image tag, e.g. `2.462.1-jdk17` (Docker build ARG)
+- `JENKINS_IMAGE_TAG`: Full base image tag, e.g. `2.568.2-jdk21` (used in docker-compose.yml)
 - `JENKINS_JAVA_OPTS`: JVM flags passed via JAVA_OPTS
 - `JENKINS_PORT`: HTTP port (host mapping)
 - `JENKINS_AGENT_PORT`: Agent port (host mapping)
