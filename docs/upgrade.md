@@ -4,6 +4,8 @@
 
 This guide covers upgrading Jenkins to a new version. Upgrades should be treated as potentially stateful operations that require careful planning and testing.
 
+Since plugins are UI-managed (not pinned in Git), upgrading Jenkins only requires changing the image tag. Plugin updates are handled separately via the Jenkins UI after the upgrade.
+
 ## Upgrade Process
 
 ### 1. Review Jenkins Release
@@ -22,66 +24,60 @@ This guide covers upgrading Jenkins to a new version. Upgrades should be treated
 
 ### 3. Review Plugin Compatibility
 
-- Check plugin compatibility matrix
-- Verify required plugins support new version
-- Note any plugins that need updates
-- Check for plugin deprecations
+- Go to **Manage Jenkins > Plugins > Installed** and note current plugin versions
+- Check if any installed plugins are incompatible with the new Jenkins version
+- Review the Jenkins plugin compatibility matrix online if needed
 
-### 4. Update Pinned Version
+### 4. Update Jenkins Version
 
 1. Edit `.env` file
-2. Update `JENKINS_VERSION` to new LTS version
-3. Verify Java version compatibility
-4. Check base image availability
+2. Update `JENKINS_IMAGE_TAG` to the new tag (e.g. `2.462.1-jdk17` → `2.462.2-jdk17`)
+   - This variable is used as the image tag in `docker-compose.yml`
+   - Verify the tag exists on Docker Hub: https://hub.docker.com/r/jenkins/jenkins/tags
+3. Verify Java version compatibility (the JDK in the tag must be supported by the Jenkins version)
 
-### 5. Update Plugins (if required)
-
-1. Edit `plugins.txt`
-2. Update plugin versions if needed
-3. Add new plugins if required
-4. Remove deprecated plugins
-
-### 6. Commit Changes
+### 5. Commit Changes
 
 ```bash
-git add .
+git add .env
 git commit -m "Update Jenkins to version X.Y.Z"
 git push
 ```
 
-### 7. Build New Image
-
-```bash
-docker compose build
-```
-
-### 8. Test in Non-Production
+### 6. Test in Non-Production
 
 1. Deploy to staging environment
 2. Run health checks
 3. Test critical functionality
-4. Verify plugin compatibility
+4. Check **Manage Jenkins > Plugins** for any warnings
 5. Check logs for warnings
 
-### 9. Backup Production
+### 7. Backup Production
 
 ```bash
 ./scripts/backup.sh
 ```
 
-### 10. Deploy to Production
+### 8. Deploy to Production
 
 ```bash
 docker compose up -d
 ```
 
-### 11. Health Check
+### 9. Health Check
 
 ```bash
 ./scripts/health-check.sh
 ```
 
-### 12. Functional Verification
+### 10. Update Plugins via UI
+
+1. Go to **Manage Jenkins > Plugins > Updates**
+2. Install any available plugin updates
+3. Restart Jenkins if prompted
+4. Create a new backup: `./scripts/backup.sh`
+
+### 11. Functional Verification
 
 1. Check Jenkins UI
 2. Verify jobs are accessible
@@ -93,9 +89,9 @@ docker compose up -d
 
 ### Rolling Upgrade (Recommended)
 
-1. Build new image with updated version
-2. Stop current container
-3. Start new container with same volume
+1. Update `JENKINS_IMAGE_TAG` in `.env`
+2. Stop current container: `docker compose down`
+3. Start new container with same volume: `docker compose up -d`
 4. Verify functionality
 
 ### Blue-Green Deployment
@@ -104,13 +100,6 @@ docker compose up -d
 2. Test new version
 3. Switch traffic to new version
 4. Keep old version as rollback
-
-### Canary Deployment
-
-1. Deploy to small subset of users
-2. Monitor for issues
-3. Gradually increase traffic
-4. Full deployment if successful
 
 ## Rollback Procedure
 
@@ -134,22 +123,17 @@ docker compose up -d
    git push
    ```
 
-3. **Rebuild Previous Version**
-   ```bash
-   docker compose build
-   ```
-
-4. **Restore Backup (if needed)**
+3. **Restore Backup (if needed)**
    ```bash
    ./scripts/restore.sh -f backup/jenkins-pre-upgrade-*.tar.gz
    ```
 
-5. **Start Previous Version**
+4. **Start Previous Version**
    ```bash
    docker compose up -d
    ```
 
-6. **Verify Functionality**
+5. **Verify Functionality**
    ```bash
    ./scripts/health-check.sh
    ```
@@ -157,8 +141,7 @@ docker compose up -d
 ### Rollback Considerations
 
 - **Data Compatibility**: Jenkins data migrations may not be backward-compatible
-- **Plugin Versions**: Plugin versions may not be compatible with older Jenkins
-- **Configuration Format**: JCasC format may differ between versions
+- **Plugin Versions**: Plugin versions updated via UI may not be compatible with older Jenkins
 - **Build History**: Build history may be affected by version changes
 
 ## Version Compatibility
@@ -172,14 +155,14 @@ docker compose up -d
 ### Java Version
 
 - Jenkins LTS versions have specific Java requirements
+- The JDK is encoded in `JENKINS_IMAGE_TAG` (e.g. `2.462.1-jdk17`, `2.462.1-jdk21`)
 - Check Java compatibility before upgrading
-- Update Java if required
 
 ### Plugin Compatibility
 
 - Some plugins may not support older Jenkins versions
-- Check plugin documentation for version requirements
-- Update plugins as needed
+- After upgrade, check **Manage Jenkins > Plugins** for warnings
+- Update plugins via UI as needed
 
 ## Upgrade Checklist
 
@@ -187,7 +170,7 @@ docker compose up -d
 
 - [ ] Review release notes
 - [ ] Check security advisories
-- [ ] Verify plugin compatibility
+- [ ] Note current plugin versions (Manage Jenkins > Plugins > Installed)
 - [ ] Test in staging environment
 - [ ] Create backup
 - [ ] Document rollback procedure
@@ -205,24 +188,18 @@ docker compose up -d
 
 - [ ] Verify Jenkins UI
 - [ ] Test critical jobs
-- [ ] Check plugin functionality
+- [ ] Update plugins via UI (Manage Jenkins > Plugins > Updates)
 - [ ] Review system logs
 - [ ] Monitor performance
-- [ ] Update documentation
+- [ ] Create post-upgrade backup
 
 ## Common Upgrade Issues
 
 ### Plugin Compatibility Issues
 
-- **Symptom**: Plugins fail to load
-- **Solution**: Update plugins to compatible versions
+- **Symptom**: Plugins fail to load or show warnings in **Manage Jenkins > Plugins**
+- **Solution**: Update plugins to compatible versions via UI
 - **Prevention**: Test plugin compatibility before upgrade
-
-### Configuration Format Changes
-
-- **Symptom**: JCasC configuration errors
-- **Solution**: Update configuration to new format
-- **Prevention**: Review JCasC changelog before upgrade
 
 ### Data Migration Issues
 
@@ -233,7 +210,7 @@ docker compose up -d
 ### Performance Issues
 
 - **Symptom**: Slow response times
-- **Solution**: Monitor resource usage, adjust limits
+- **Solution**: Monitor resource usage, adjust limits in `docker-compose.yml`
 - **Prevention**: Test performance in staging
 
 ## Monitoring After Upgrade
@@ -259,8 +236,7 @@ docker compose up -d
 
 After successful upgrade:
 
-1. Update `README.md` with new version
+1. Update `.env` with the new `JENKINS_IMAGE_TAG` (already done during upgrade)
 2. Update `docs/architecture.md` if needed
 3. Update `docs/operations.md` if needed
 4. Document any new procedures
-5. Update rollback documentation

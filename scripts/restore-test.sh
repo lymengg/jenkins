@@ -2,30 +2,34 @@
 set -euo pipefail
 
 # Jenkins Restore Test Script
-# Tests backup restoration in an isolated environment
-# Does NOT touch the production Jenkins volume
+# Tests backup restoration in an isolated environment.
+# Does NOT touch the production Jenkins volume.
 
-TEST_CONTAINER="jenkins-restore-test"
-TEST_VOLUME="jenkins_test_home"
+TEST_ID=$(date +%s)
+TEST_CONTAINER="jenkins-restore-test-${TEST_ID}"
+TEST_VOLUME="jenkins_test_home_${TEST_ID}"
 TEST_PORT=8081
 TEST_AGENT_PORT=50001
-JENKINS_VERSION="${JENKINS_VERSION:-2.462.1}"
+JENKINS_IMAGE_TAG="${JENKINS_IMAGE_TAG:-2.462.1-jdk17}"
+NO_WAIT=false
 
 usage() {
-    echo "Usage: $0 -f <backup-file>"
+    echo "Usage: $0 -f <backup-file> [--no-wait]"
     echo ""
     echo "Options:"
     echo "  -f <backup-file>    Path to the backup tar.gz file (required)"
+    echo "  --no-wait           Skip the 5-minute manual verification wait (for CI/automation)"
     echo "  -h                  Show this help message"
     exit 1
 }
 
 # Parse arguments
 BACKUP_FILE=""
-while getopts "f:h" opt; do
-    case $opt in
-        f) BACKUP_FILE="$OPTARG" ;;
-        h) usage ;;
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -f) BACKUP_FILE="$2"; shift 2 ;;
+        --no-wait) NO_WAIT=true; shift ;;
+        -h) usage ;;
         *) usage ;;
     esac
 done
@@ -42,6 +46,33 @@ if [ ! -f "${BACKUP_FILE}" ]; then
     exit 1
 fi
 
+# Verify backup file is a valid tar.gz
+echo "Verifying backup file integrity..."
+if ! tar tzf "${BACKUP_FILE}" >/dev/null 2>&1; then
+    echo "ERROR: Backup file is not a valid tar.gz archive"
+    exit 1
+fi
+echo "Integrity check: PASS"
+
+# Check if test ports are available
+check_port() {
+    if command -v ss >/dev/null 2>&1; then
+        ss -tlnp 2>/dev/null | grep -q ":${1} " && return 1 || return 0
+    elif command -v netstat >/dev/null 2>&1; then
+        netstat -tlnp 2>/dev/null | grep -q ":${1} " && return 1 || return 0
+    fi
+    return 0  # Can't check - assume available
+}
+
+if ! check_port ${TEST_PORT}; then
+    echo "ERROR: Port ${TEST_PORT} is already in use. Free it or modify TEST_PORT in the script."
+    exit 1
+fi
+if ! check_port ${TEST_AGENT_PORT}; then
+    echo "ERROR: Port ${TEST_AGENT_PORT} is already in use."
+    exit 1
+fi
+
 # Cleanup function
 cleanup() {
     echo "Cleaning up test environment..."
@@ -52,12 +83,15 @@ cleanup() {
 
 trap cleanup EXIT
 
+echo ""
 echo "=== Jenkins Restore Test ==="
 echo "Testing backup: ${BACKUP_FILE}"
-echo "Jenkins version: ${JENKINS_VERSION}"
+echo "Jenkins image tag: ${JENKINS_IMAGE_TAG}"
+echo "Test container: ${TEST_CONTAINER}"
+echo "Test volume: ${TEST_VOLUME}"
 echo ""
 
-# Clean up any existing test environment
+# Clean up any existing test environment with the same ID
 cleanup
 
 # Create test volume
@@ -72,7 +106,7 @@ docker run --rm \
     alpine:latest \
     sh -c "tar xzf /backup/restore.tar.gz -C /var/jenkins_home"
 
-# Fix permissions
+# Fix permissions (Jenkins runs as UID 1000)
 echo "Fixing permissions..."
 docker run --rm \
     -v "${TEST_VOLUME}:/var/jenkins_home" \
@@ -86,24 +120,33 @@ docker run -d \
     -p "${TEST_PORT}:8080" \
     -p "${TEST_AGENT_PORT}:50000" \
     -v "${TEST_VOLUME}:/var/jenkins_home" \
-    -e "JENKINS_OPTS=-Djava.awt.headless=true -Xmx1024m" \
-    jenkins/jenkins:${JENKINS_VERSION}-jdk17
+    -e "JAVA_OPTS=-Djava.awt.headless=true -Xmx1024m" \
+    jenkins/jenkins:${JENKINS_IMAGE_TAG}
 
 # Wait for Jenkins to start
 echo "Waiting for Jenkins to start..."
 MAX_WAIT=120
 WAIT_INTERVAL=5
 ELAPSED=0
+JENKINS_STARTED=false
 
 while [ ${ELAPSED} -lt ${MAX_WAIT} ]; do
     if curl -sf "http://localhost:${TEST_PORT}/login" > /dev/null 2>&1; then
         echo "Jenkins is responding after ${ELAPSED} seconds"
+        JENKINS_STARTED=true
         break
     fi
     sleep ${WAIT_INTERVAL}
     ELAPSED=$((ELAPSED + WAIT_INTERVAL))
     echo "Waiting... (${ELAPSED}/${MAX_WAIT}s)"
 done
+
+if [ "${JENKINS_STARTED}" = false ]; then
+    echo "ERROR: Jenkins did not start within ${MAX_WAIT}s"
+    echo "Container logs:"
+    docker logs "${TEST_CONTAINER}" --tail=30
+    exit 1
+fi
 
 # Verify Jenkins is running
 echo ""
@@ -163,12 +206,15 @@ fi
 
 echo ""
 echo "=== Restore Test Complete ==="
+echo "All critical checks passed."
 echo "Test Jenkins is running on port ${TEST_PORT}"
-echo "To manually verify, open: http://localhost:${TEST_PORT}"
-echo ""
-echo "Press Ctrl+C to stop and clean up, or wait for automatic cleanup..."
 
-# Keep container running for manual verification
-sleep 300
-
-echo "Test period ended. Cleaning up..."
+if [ "${NO_WAIT}" = true ]; then
+    echo "--no-wait specified, cleaning up immediately."
+else
+    echo ""
+    echo "To manually verify, open: http://localhost:${TEST_PORT}"
+    echo "Press Ctrl+C to stop and clean up, or wait for automatic cleanup..."
+    sleep 300
+    echo "Test period ended. Cleaning up..."
+fi

@@ -34,17 +34,20 @@ docker compose up -d
 
 ## Common Tasks
 
-### Install Additional Plugins
+### Install or Update Plugins
 
-1. Edit `plugins.txt` to add new plugins
-2. Rebuild the image: `docker compose build`
-3. Restart Jenkins: `docker compose up -d`
+1. Go to **Manage Jenkins > Plugins**
+2. Install new plugins from the **Available** tab
+3. Update existing plugins from the **Updates** tab
+4. Restart Jenkins if prompted
+5. Create a backup: `./scripts/backup.sh`
 
-### Update JCasC Configuration
+### Configure Jenkins Settings
 
-1. Edit `casc/jenkins.yaml`
-2. Restart Jenkins: `docker compose restart jenkins`
-3. Verify configuration loaded correctly
+1. Go to **Manage Jenkins > System**
+2. Configure as needed (URL, email, executors, etc.)
+3. Save changes
+4. Create a backup: `./scripts/backup.sh`
 
 ### View Jenkins Logs
 
@@ -71,13 +74,13 @@ docker compose logs --since="2024-01-01T00:00:00" jenkins
 
 ```bash
 # Container resource usage
-docker stats jenkins-controller
+docker stats jenkins
 
 # Disk usage
-docker exec jenkins-controller df -h /var/jenkins_home
+docker exec jenkins df -h /var/jenkins_home
 
 # Memory usage
-docker exec jenkins-controller free -m
+docker exec jenkins free -m
 ```
 
 ## Troubleshooting
@@ -87,21 +90,25 @@ docker exec jenkins-controller free -m
 1. Check logs: `docker compose logs jenkins`
 2. Verify disk space: `df -h`
 3. Check permissions on Jenkins home
-4. Verify plugin compatibility
+4. Verify plugin compatibility (check logs for plugin load errors)
 
 ### Slow Performance
 
 1. Check resource usage: `docker stats`
 2. Review Jenkins logs for warnings
-3. Consider increasing memory limits
+3. Consider increasing memory limits in `docker-compose.yml`
 4. Check disk I/O performance
 
-### Configuration Issues
+### Plugin Issues
 
-1. Verify JCasC syntax
-2. Check environment variables
-3. Review Jenkins system logs
-4. Validate plugin configurations
+1. Check **Manage Jenkins > Plugins > Installed** for warnings
+2. Review Jenkins logs for plugin errors
+3. Try updating the problematic plugin via UI
+4. If a plugin prevents startup, disable it:
+   ```bash
+   docker exec jenkins mv /var/jenkins_home/plugins/<plugin-name>.jpi /var/jenkins_home/plugins/<plugin-name>.jpi.disabled
+   docker compose restart jenkins
+   ```
 
 ## Backup Operations
 
@@ -127,22 +134,23 @@ find backup/ -name "jenkins-*.tar.gz" -mtime +30 -delete
 
 ### Update Jenkins Version
 
-1. Update `JENKINS_VERSION` in `.env`
-2. Rebuild image: `docker compose build`
-3. Test in non-production
-4. Deploy to production
+1. Update `JENKINS_IMAGE_TAG` in `.env`
+2. Test in non-production: `docker compose up -d`
+3. Deploy to production: `docker compose up -d`
+4. Check **Manage Jenkins > Plugins > Updates** for plugin updates
 
 ### Update Plugins
 
-1. Update versions in `plugins.txt`
-2. Rebuild image: `docker compose build`
-3. Test plugin compatibility
-4. Deploy to production
+1. Go to **Manage Jenkins > Plugins > Updates**
+2. Select plugins to update
+3. Click "Download and apply after restart" or "Download now and install after restart"
+4. Restart Jenkins if prompted
+5. Create a backup: `./scripts/backup.sh`
 
 ### Rotate Secrets
 
-1. Update environment variables
-2. Restart Jenkins: `docker compose restart jenkins`
+1. Update credentials in **Manage Jenkins > Credentials**
+2. Restart Jenkins if needed: `docker compose restart jenkins`
 3. Verify functionality
 
 ## Maintenance
@@ -150,7 +158,7 @@ find backup/ -name "jenkins-*.tar.gz" -mtime +30 -delete
 ### Regular Tasks
 
 - Weekly: Review Jenkins logs
-- Monthly: Check for updates
+- Monthly: Check for plugin and Jenkins updates via UI
 - Quarterly: Review security settings
 - Annually: Disaster recovery test
 
@@ -158,10 +166,10 @@ find backup/ -name "jenkins-*.tar.gz" -mtime +30 -delete
 
 ```bash
 # Clean old builds
-docker exec jenkins-controller find /var/jenkins_home/jobs -name "lastStable" -exec rm -rf {} \;
+docker exec jenkins find /var/jenkins_home/jobs -name "lastStable" -exec rm -rf {} \;
 
 # Clean workspace
-docker exec jenkins-controller find /var/jenkins_home/workspace -type d -mtime +30 -exec rm -rf {} \;
+docker exec jenkins find /var/jenkins_home/workspace -type d -mtime +30 -exec rm -rf {} \;
 ```
 
 ## CI/CD Integration
@@ -182,10 +190,6 @@ validate:
   script:
     - docker compose config
 
-build:
-  script:
-    - docker compose build
-
 test:
   script:
     - ./scripts/health-check.sh
@@ -197,9 +201,12 @@ deploy:
     - ./scripts/health-check.sh
 ```
 
-### Required Environment Variables
+### Environment Variables
 
-- `JENKINS_VERSION`: Jenkins LTS version
-- `JENKINS_JAVA_OPTS`: Java options
-- `JENKINS_PORT`: HTTP port
-- `JENKINS_AGENT_PORT`: Agent port
+See `.env.example` for the full list. Key variables:
+
+- `JENKINS_IMAGE_TAG`: Full base image tag, e.g. `2.462.1-jdk17` (Docker build ARG)
+- `JENKINS_JAVA_OPTS`: JVM flags passed via JAVA_OPTS
+- `JENKINS_PORT`: HTTP port (host mapping)
+- `JENKINS_AGENT_PORT`: Agent port (host mapping)
+- `BACKUP_RETENTION_DAYS`: Backup retention period in days

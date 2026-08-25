@@ -16,7 +16,7 @@
 - Docker container itself
 - Docker image
 - Environment variables (stored in `.env`)
-- Repository configuration (stored in Git)
+- Jenkins version and infrastructure config (stored in Git: `.env`, `docker-compose.yml`)
 
 ### Backup Location
 
@@ -75,7 +75,7 @@ du -h backup/jenkins-2024-01-01-120000.tar.gz
 ### Restore Options
 
 - `-f <backup-file>`: Path to backup file (required)
-- `-t <target>`: Target container name (default: jenkins-controller)
+- `-t <target>`: Target container name (default: jenkins)
 - `-y`: Skip confirmation prompt (use with caution)
 
 ### Restore Safety Features
@@ -149,7 +149,7 @@ du -h backup/jenkins-2024-01-01-120000.tar.gz
 2. **Clone Repository**
    ```bash
    git clone <repository-url>
-   cd jenkins-infrastructure
+   cd jenkins
    ```
 
 3. **Configure Environment**

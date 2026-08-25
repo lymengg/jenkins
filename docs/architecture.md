@@ -2,30 +2,37 @@
 
 ## Overview
 
-This repository provides a production-oriented Jenkins deployment using Docker Compose with Configuration as Code (JCasC).
+This repository provides a production-oriented Jenkins deployment using Docker Compose. Jenkins version and infrastructure are tracked in Git; plugins and configuration are managed via the Jenkins UI and persisted in a Docker volume.
 
 ## Components
 
 ### Jenkins Controller
 
-- Custom Docker image based on Jenkins LTS
-- Pinned version for reproducibility
-- Essential plugins pre-installed
-- Configuration managed via JCasC
+- Official `jenkins/jenkins` LTS image (no custom build)
+- Pinned version for reproducibility (overridable via `JENKINS_IMAGE_TAG`)
+- Plugins and configuration managed via Jenkins UI (persisted in volume)
 
 ### Data Flow
 
 ```
 Git Repository
     ↓
-Dockerfile + Compose + JCasC + plugins
+docker-compose.yml (image tag + infrastructure)
     ↓
-Docker Build
+Jenkins Container (official jenkins/jenkins image)
     ↓
-Jenkins Container
-    ↓
-Persistent Volume (jenkins_home)
+Persistent Volume (jenkins_home: plugins, config, jobs, credentials)
 ```
+
+### What is Tracked Where
+
+| Artifact | Tracked In | Reason |
+|----------|-----------|--------|
+| Jenkins version + JDK | Git (`.env`, `docker-compose.yml`) | Reproducible upgrades/patches |
+| Infrastructure (ports, limits, health) | Git (`docker-compose.yml`) | Reproducible deployments |
+| Backup/restore/health scripts | Git (`scripts/`) | Operational reproducibility |
+| Plugins | Docker volume + backups | UI-managed, Jenkins prompts for updates |
+| Jobs, credentials, config | Docker volume + backups | UI-managed, captured by backup.sh |
 
 ### Persistent Storage
 
@@ -52,12 +59,12 @@ Jenkins Agent Port :50000 (JNLP)
 - No Docker socket mounted (use dedicated build agents)
 - Least privilege principle
 - No unnecessary Linux capabilities
-- Secrets managed via environment variables
+- Resource limits enforced via Docker Compose (`deploy.resources`)
 
 ### Access Control
 
-- Role-based authorization via JCasC
-- Admin credentials configured via environment variables
+- Admin user created via Jenkins setup wizard on first launch
+- Authorization strategy configured via Jenkins UI
 - API tokens for programmatic access
 
 ### Network Security
@@ -72,7 +79,7 @@ Jenkins Agent Port :50000 (JNLP)
 
 - Single Jenkins instance
 - Local Docker environment
-- Manual configuration acceptable
+- Manual configuration via UI
 
 ### Staging
 
@@ -82,7 +89,6 @@ Jenkins Agent Port :50000 (JNLP)
 
 ### Production
 
-- Full JCasC configuration
 - Regular backups to external storage
 - Health monitoring
 - Documented upgrade procedures
@@ -91,7 +97,7 @@ Jenkins Agent Port :50000 (JNLP)
 
 ### Backup Strategy
 
-- Regular backups of entire Jenkins home
+- Regular backups of entire Jenkins home (plugins, config, jobs, credentials)
 - Timestamped backup files
 - Retention policy for old backups
 - External storage recommended
@@ -101,13 +107,15 @@ Jenkins Agent Port :50000 (JNLP)
 1. Provision new server
 2. Install Docker and dependencies
 3. Clone repository
-4. Restore backup
-5. Verify functionality
+4. Start Jenkins: `docker compose up -d`
+5. Restore backup
+6. Verify functionality
 
 ## Future Enhancements
 
-- CI/CD pipeline for automated deployments
-- External secret management integration
+- External secret management integration (Vault, AWS Secrets Manager)
 - Multi-node Jenkins cluster
-- Monitoring and alerting
-- Log aggregation
+- Monitoring and alerting (Prometheus/Grafana)
+- Log aggregation (ELK/Loki)
+- TLS termination via reverse proxy (nginx/traefik)
+- Automated scheduled backups via cron/systemd timer

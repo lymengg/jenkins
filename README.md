@@ -1,33 +1,40 @@
 # Jenkins Infrastructure
 
-Production-oriented Jenkins deployment using Docker Compose with Configuration as Code (JCasC).
+Production-oriented Jenkins deployment using Docker Compose.
 
 ## Architecture
 
 ```
 Git Repository
     ↓
-Dockerfile + Compose + JCasC + plugins
+docker-compose.yml (image tag + infrastructure)
     ↓
-Jenkins Controller
+Jenkins Controller (official jenkins/jenkins image)
     ↓
-Persistent Jenkins Volume
+Persistent Jenkins Volume (plugins, config, jobs, credentials)
 ```
 
-### Components
+### What is tracked in Git
 
-- **Dockerfile**: Custom Jenkins LTS image with pinned version and essential plugins
-- **docker-compose.yml**: Production-oriented container orchestration
-- **casc/jenkins.yaml**: Jenkins Configuration as Code
-- **plugins.txt**: Minimal set of required plugins
-- **scripts/**: Operational scripts for backup, restore, and health checks
+- **Jenkins version** — pinned via `JENKINS_IMAGE_TAG` in `.env`, used as the image tag in `docker-compose.yml`
+- **Infrastructure** — `docker-compose.yml` (ports, resource limits, health checks, volumes)
+- **Operational scripts** — backup, restore, health check
+- **Documentation** — architecture, operations, upgrade, backup/restore guides
+
+### What is managed via UI (persisted in Docker volume)
+
+- **Plugins** — installed and updated via Jenkins UI; Jenkins prompts you when updates are available
+- **Jenkins configuration** — security realm, authorization, credentials, jobs
+- **Build history and workspaces**
+
+This approach avoids stale/deprecated plugin versions from a pinned `plugins.txt`. Plugin state is captured by `backup.sh` and restored by `restore.sh`.
 
 ## Initial Installation
 
 1. Clone the repository:
    ```bash
    git clone <repository-url>
-   cd jenkins-infrastructure
+   cd jenkins
    ```
 
 2. Create environment file:
@@ -36,24 +43,18 @@ Persistent Jenkins Volume
    # Edit .env with your configuration
    ```
 
-3. Build and start Jenkins:
+3. Start Jenkins:
    ```bash
-   docker compose build
    docker compose up -d
    ```
 
-4. Access Jenkins:
+4. Complete the Jenkins setup wizard:
    - URL: http://localhost:8080
-   - Default admin password: Check container logs or use configured password
+   - Get the initial admin password: `docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword`
+   - Choose "Select plugins to install" or "Install suggested plugins"
+   - Create your admin user
 
-## Initial Jenkins Setup
-
-After first deployment:
-
-1. Complete the initial setup wizard
-2. Configure admin credentials
-3. Set up SCM credentials for pipelines
-4. Configure any additional settings in `casc/jenkins.yaml`
+5. Install additional plugins as needed via **Manage Jenkins > Plugins**
 
 ## Daily Operations
 
@@ -81,13 +82,20 @@ docker compose logs -f jenkins
 ./scripts/backup.sh
 ```
 
-Backups are stored in the `backup/` directory with timestamped filenames.
+Backups are stored in the `backup/` directory with timestamped filenames. The script puts Jenkins into quiet-down mode before backing up for a more consistent snapshot, then resumes Jenkins.
+
+### What Backups Include
+
+- All plugins (including versions and configurations)
+- All job configurations and build history
+- All credentials
+- Jenkins system configuration
+- User accounts
 
 ### Backup Strategy
 
-- Backups include the entire Jenkins home directory
 - Timestamped backups for easy identification
-- Automatic cleanup of old backups based on retention policy
+- Automatic cleanup of old backups based on retention policy (`BACKUP_RETENTION_DAYS`)
 - **Important**: Copy backups to external/object storage for production use
 
 ## Restore
@@ -99,7 +107,7 @@ Backups are stored in the `backup/` directory with timestamped filenames.
 
 ### Restore Options
 - `-f <backup-file>`: Path to backup file (required)
-- `-t <target>`: Target container name (default: jenkins-controller)
+- `-t <target>`: Target container name (default: jenkins)
 - `-y`: Skip confirmation prompt (use with caution)
 
 **WARNING**: Restore is a destructive operation that overwrites the current Jenkins home.
@@ -119,30 +127,45 @@ See [docs/upgrade.md](docs/upgrade.md) for detailed upgrade procedures.
 
 ### Quick Upgrade Steps
 
-1. Review Jenkins release notes
-2. Update `JENKINS_VERSION` in `.env`
-3. Update plugins in `plugins.txt` if needed
-4. Build new image: `docker compose build`
-5. Test in non-production environment
-6. Create backup: `./scripts/backup.sh`
-7. Deploy: `docker compose up -d`
-8. Verify: `./scripts/health-check.sh`
+1. Review Jenkins release notes and security advisories
+2. Update `JENKINS_IMAGE_TAG` in `.env` (e.g. `2.462.1-jdk17` → `2.462.2-jdk17`)
+3. Test in non-production environment
+4. Create backup: `./scripts/backup.sh`
+5. Deploy: `docker compose up -d`
+6. Verify: `./scripts/health-check.sh`
+7. After Jenkins starts, check **Manage Jenkins > Plugins** for any plugin updates needed
+
+### Plugin Updates After Upgrade
+
+Since plugins are UI-managed, after a Jenkins upgrade:
+1. Go to **Manage Jenkins > Plugins > Updates**
+2. Install available plugin updates
+3. Restart Jenkins if prompted
+4. Create a new backup: `./scripts/backup.sh`
+
+## CI Validation
+
+The repository includes a GitHub Actions CI workflow (`.github/workflows/ci.yml`) that runs on every push and pull request to `main`. It validates:
+- docker-compose configuration
+- Jenkins image pulls and starts successfully
+- Jenkins responds to health checks
 
 ## Disaster Recovery
 
 1. Provision new server with Docker
 2. Clone repository
-3. Copy backup to new server
-4. Follow installation steps
-5. Restore backup: `./scripts/restore.sh -f <backup-file>`
-6. Verify functionality
+3. Copy `.env.example` to `.env` and configure
+4. Copy backup to new server
+5. Start Jenkins: `docker compose up -d`
+6. Restore backup: `./scripts/restore.sh -f <backup-file>`
+7. Verify: `./scripts/health-check.sh`
 
 ## Security Considerations
 
 - No Docker socket mounted (use dedicated build agents instead)
-- Secrets stored in environment variables, not in Git
-- Reverse proxy recommended for production (not included)
-- Regular security updates for Jenkins and plugins
+- Resource limits enforced via Docker Compose (`deploy.resources`)
+- Reverse proxy recommended for production TLS termination (not included)
+- Regular security updates for Jenkins and plugins (check UI for updates)
 - Backup encryption recommended for sensitive data
 - Restricted access to backup files
 
@@ -155,4 +178,4 @@ See [docs/upgrade.md](docs/upgrade.md) for detailed upgrade procedures.
 
 ## License
 
-[Add your license here]
+MIT
