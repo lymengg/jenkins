@@ -75,6 +75,27 @@ docker compose restart jenkins
 docker compose logs -f jenkins
 ```
 
+## Agents
+
+Build agents are separate hosts that execute Jenkins jobs. The recommended launch method is **SSH** (controller connects to the agent on port 22, key-based auth, no inbound port on the controller).
+
+### Prepare an agent host
+
+Run the setup script on the Linux agent host (as root/sudo). It creates a dedicated `jenkins` user, installs Java 21, sets up `~jenkins/.ssh` with correct permissions, and prints the remaining steps (key generation, Jenkins UI node registration):
+
+```bash
+sudo ./scripts/setup-agent.sh
+```
+
+### Full setup guide
+
+See [docs/agents.md](docs/agents.md) for the complete guide covering:
+- SSH launch method (recommended)
+- WebSocket fallback (for agents behind NAT)
+- JNLP/TCP legacy method (discouraged, opt-in)
+- Security hardening checklist
+- Troubleshooting
+
 ## Backup
 
 ### Create Backup
@@ -172,6 +193,7 @@ The repository includes a GitHub Actions CI workflow (`.github/workflows/ci.yml`
 ## Documentation
 
 - [Architecture](docs/architecture.md)
+- [Agents](docs/agents.md)
 - [Operations](docs/operations.md)
 - [Backup and Restore](docs/backup-and-restore.md)
 - [Upgrade Guide](docs/upgrade.md)

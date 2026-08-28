@@ -5,7 +5,15 @@ services:
     restart: unless-stopped
     ports:
       - "${JENKINS_PORT:-8080}:8080"
-      - "${JENKINS_AGENT_PORT:-50000}:50000"
+      # Agent JNLP/TCP port (50000) is NOT exposed by default.
+      # Recommended agent launch methods (SSH, WebSocket) do not require it.
+      # To enable legacy JNLP/TCP agents, create a docker-compose.override.yml
+      # (gitignored) with:
+      #   services:
+      #     jenkins:
+      #       ports:
+      #         - "${JENKINS_AGENT_PORT:-50000}:50000"
+      # See docs/agents.md for details.
     environment:
       # JVM flags go in JAVA_OPTS (or JENKINS_JAVA_OPTS), NOT JENKINS_OPTS
       - JAVA_OPTS=${JENKINS_JAVA_OPTS:--Djava.awt.headless=true -Xmx2048m -Xms512m}

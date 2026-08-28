@@ -45,11 +45,19 @@ Persistent Volume (jenkins_home: plugins, config, jobs, credentials)
 ```
 Internet
     ↓
-Reverse Proxy (recommended for production)
+Reverse Proxy (recommended for production, TLS on :443)
     ↓
-Jenkins :8080 (HTTP)
-    ↓
-Jenkins Agent Port :50000 (JNLP)
+Jenkins Controller :8080 (HTTP)
+
+Build agents (recommended: SSH launch method)
+    Controller ──SSH:22──> Agent host(s)
+    (no inbound port required on the controller)
+
+Fallback: WebSocket inbound (agent behind NAT)
+    Agent ──HTTPS:443──> Controller (tunnels over existing TLS port)
+
+Legacy (discouraged): JNLP/TCP :50000
+    Agent ──TCP:50000──> Controller (opt-in, disabled by default)
 ```
 
 ## Security Model
@@ -69,9 +77,22 @@ Jenkins Agent Port :50000 (JNLP)
 
 ### Network Security
 
-- Minimal exposed ports (8080 for HTTP, 50000 for agents)
+- Minimal exposed ports (8080 for HTTP; agent port 50000 disabled by default)
 - Reverse proxy recommended for TLS termination
 - Firewall rules should restrict access to Jenkins ports
+- **Build agents**: prefer the SSH launch method (controller connects to agent on :22, no inbound port on controller). See [Agents](agents.md) for details.
+- **WebSocket inbound** is the recommended fallback when the controller cannot reach the agent (tunnels over :443, no extra inbound port).
+- **JNLP/TCP :50000** is legacy and discouraged; opt in via a `docker-compose.override.yml` (gitignored) that maps the port — see `docker-compose.yml` and [Agents](agents.md) for details.
+
+## Build Agents
+
+Build agents are separate hosts that execute Jenkins jobs. The controller dispatches builds to agents based on labels.
+
+- **Recommended launch method**: SSH (controller → agent on :22, key-based auth, no inbound controller port). See [Agents](agents.md) for the full setup guide and `scripts/setup-agent.sh` for host preparation.
+- **Fallback**: WebSocket inbound (for agents behind NAT; reuses :443, no extra controller port).
+- **Legacy**: JNLP/TCP :50000 (discouraged; opt in via `docker-compose.override.yml`).
+- Agents run as a dedicated low-privilege user (`jenkins`) created by `scripts/setup-agent.sh`.
+- SSH hardening (disable password auth, restrict SSH to controller IP) is the responsibility of the infra/security team — see [Agents > Security hardening](agents.md#security-hardening).
 
 ## Deployment Environments
 
@@ -114,7 +135,6 @@ Jenkins Agent Port :50000 (JNLP)
 ## Future Enhancements
 
 - External secret management integration (Vault, AWS Secrets Manager)
-- Multi-node Jenkins cluster
 - Monitoring and alerting (Prometheus/Grafana)
 - Log aggregation (ELK/Loki)
 - TLS termination via reverse proxy (nginx/traefik)
