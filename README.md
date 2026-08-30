@@ -75,6 +75,20 @@ docker compose restart jenkins
 docker compose logs -f jenkins
 ```
 
+## Docker Hub Credentials
+
+For Jenkinsfiles that push Docker images, you need a `dockerhub` credential in Jenkins. Create it with:
+
+```bash
+./scripts/setup-dockerhub-credential.sh
+```
+
+This prompts for your Docker Hub username and access token, then creates/updates the `dockerhub` credential via the Jenkins Script Console.
+
+Prerequisites:
+- Jenkins running (`docker compose up -d`)
+- `JENKINS_USER` and `JENKINS_API_TOKEN` set in `.env` (see [Initial Installation](#initial-installation))
+
 ## Agents
 
 Build agents are separate hosts that execute Jenkins jobs. The recommended launch method is **SSH** (controller connects to the agent on port 22, key-based auth, no inbound port on the controller).
