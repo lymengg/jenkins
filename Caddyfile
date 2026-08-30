@@ -1,0 +1,14 @@
+jenkins.ouklymeng.qzz.io {
+    reverse_proxy http://jenkins:8080 {
+        header_up Host {upstream_hostport}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+
+        # WebSocket support for Jenkins agents
+        transport http {
+            read_buffer  16384
+            write_buffer 16384
+        }
+    }
+}

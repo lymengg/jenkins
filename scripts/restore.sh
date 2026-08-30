@@ -20,16 +20,8 @@ usage() {
 TARGET_CONTAINER="jenkins"
 FORCE_RESTORE=false
 BACKUP_FILE=""
-JENKINS_PORT="${JENKINS_PORT:-8080}"
-JENKINS_URL="${JENKINS_URL:-http://localhost:${JENKINS_PORT}}"
 JENKINS_USER="${JENKINS_USER:-}"
 JENKINS_API_TOKEN="${JENKINS_API_TOKEN:-}"
-
-# Build curl auth args if credentials are provided
-CURL_AUTH_ARGS=()
-if [ -n "${JENKINS_USER}" ] && [ -n "${JENKINS_API_TOKEN}" ]; then
-    CURL_AUTH_ARGS=(-u "${JENKINS_USER}:${JENKINS_API_TOKEN}")
-fi
 
 # Parse arguments
 while getopts "f:t:yh" opt; do
@@ -115,7 +107,11 @@ fi
 
 # Stop Jenkins gracefully using the HTTP API (not jenkins-cli which isn't in the image)
 echo "Stopping Jenkins gracefully..."
-curl -fsS "${CURL_AUTH_ARGS[@]}" -X POST "${JENKINS_URL}/safeExit" >/dev/null 2>&1 || true
+SAFE_EXIT_ARGS=(-X POST "http://localhost:8080/safeExit")
+if [ -n "${JENKINS_USER}" ] && [ -n "${JENKINS_API_TOKEN}" ]; then
+    SAFE_EXIT_ARGS=(-u "${JENKINS_USER}:${JENKINS_API_TOKEN}" "${SAFE_EXIT_ARGS[@]}")
+fi
+docker exec "${TARGET_CONTAINER}" curl -fsS "${SAFE_EXIT_ARGS[@]}" >/dev/null 2>&1 || true
 
 # Wait for Jenkins to stop (up to 30 seconds)
 echo "Waiting for Jenkins to stop..."
@@ -159,7 +155,7 @@ echo "Waiting for Jenkins to start..."
 MAX_WAIT=120
 ELAPSED=0
 while [ ${ELAPSED} -lt ${MAX_WAIT} ]; do
-    if curl -sf "http://localhost:${JENKINS_PORT}/login" >/dev/null 2>&1; then
+    if docker exec "${TARGET_CONTAINER}" curl -sf "http://localhost:8080/login" >/dev/null 2>&1; then
         echo "Jenkins is responding after ${ELAPSED}s"
         break
     fi

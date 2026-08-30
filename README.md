@@ -5,11 +5,11 @@ Production-oriented Jenkins deployment using Docker Compose.
 ## Architecture
 
 ```
-Git Repository
-    ↓
-docker-compose.yml (image tag + infrastructure)
-    ↓
-Jenkins Controller (official jenkins/jenkins image)
+Internet
+    ↓ (ports 80/443)
+Caddy Reverse Proxy (automatic HTTPS via Let's Encrypt)
+    ↓ (Docker network)
+Jenkins Controller (official jenkins/jenkins image, port 8080 internal)
     ↓
 Persistent Jenkins Volume (plugins, config, jobs, credentials)
 ```
@@ -49,10 +49,10 @@ This approach avoids stale/deprecated plugin versions from a pinned `plugins.txt
    ```
 
 4. Complete the Jenkins setup wizard:
-   - URL: http://localhost:8080
-   - Get the initial admin password: `docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword`
-   - Choose "Select plugins to install" or "Install suggested plugins"
-   - Create your admin user
+    - URL: https://jenkins.ouklymeng.qzz.io/
+    - Get the initial admin password: `docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword`
+    - Choose "Select plugins to install" or "Install suggested plugins"
+    - Create your admin user
 
 5. Install additional plugins as needed via **Manage Jenkins > Plugins**
 
@@ -185,10 +185,54 @@ The repository includes a GitHub Actions CI workflow (`.github/workflows/ci.yml`
 
 - No Docker socket mounted (use dedicated build agents instead)
 - Resource limits enforced via Docker Compose (`deploy.resources`)
-- Reverse proxy recommended for production TLS termination (not included)
+- Caddy reverse proxy provides automatic HTTPS via Let's Encrypt
+- Jenkins port 8080 is not exposed to the host — only accessible via Caddy on the Docker network
 - Regular security updates for Jenkins and plugins (check UI for updates)
 - Backup encryption recommended for sensitive data
 - Restricted access to backup files
+
+## EC2 Security Group Requirements
+
+| Port | Protocol | Source | Purpose |
+|------|----------|--------|---------|
+| 22 | TCP | Your IP | SSH access for administration |
+| 80 | TCP | 0.0.0.0/0 | HTTP (Caddy auto-redirects to HTTPS) |
+| 443 | TCP | 0.0.0.0/0 | HTTPS (Caddy reverse proxy to Jenkins) |
+
+## Deployment
+
+### First-time setup
+
+```bash
+git clone <repository-url>
+cd jenkins
+cp .env.example .env   # Edit with your configuration
+docker compose up -d
+```
+
+### Verify the stack
+
+```bash
+# Check containers are running
+docker compose ps
+
+# Check Caddy logs for certificate acquisition
+docker compose logs caddy
+
+# Verify HTTPS is working
+curl -I https://jenkins.ouklymeng.qzz.io/
+
+# Check Jenkins health
+./scripts/health-check.sh
+```
+
+### DNS configuration
+
+Ensure your DNS provider has:
+
+| Type | Name | Value |
+|------|------|-------|
+| A | jenkins | `<EC2 Elastic IP>` |
 
 ## Documentation
 

@@ -6,14 +6,12 @@ set -euo pipefail
 # Exits with non-zero if critical checks fail.
 
 CONTAINER_NAME="${CONTAINER_NAME:-jenkins}"
-JENKINS_PORT="${JENKINS_PORT:-8080}"
-JENKINS_URL="${JENKINS_URL:-http://localhost:${JENKINS_PORT}}"
+JENKINS_URL="${JENKINS_URL:-http://localhost:8080}"
 TIMEOUT=10
 WARNINGS=0
 
 echo "=== Jenkins Health Check ==="
 echo "Container: ${CONTAINER_NAME}"
-echo "URL: ${JENKINS_URL}"
 echo ""
 
 # Check 1: Docker container is running
@@ -25,18 +23,18 @@ else
     exit 1
 fi
 
-# Check 2: HTTP health endpoint responds
+# Check 2: HTTP health endpoint responds (via docker exec since port 8080 is not exposed to host)
 echo -n "2. HTTP health check: "
-if curl -sf --max-time ${TIMEOUT} "${JENKINS_URL}/login" > /dev/null 2>&1; then
+if docker exec "${CONTAINER_NAME}" curl -sf --max-time ${TIMEOUT} "http://localhost:8080/login" > /dev/null 2>&1; then
     echo "RESPONDING"
 else
     echo "NOT RESPONDING"
     exit 1
 fi
 
-# Check 3: Jenkins API accessible
+# Check 3: Jenkins API accessible (via docker exec)
 echo -n "3. Jenkins API: "
-if curl -sf --max-time ${TIMEOUT} "${JENKINS_URL}/api/json" > /dev/null 2>&1; then
+if docker exec "${CONTAINER_NAME}" curl -sf --max-time ${TIMEOUT} "http://localhost:8080/api/json" > /dev/null 2>&1; then
     echo "ACCESSIBLE"
 else
     echo "NOT ACCESSIBLE"
@@ -46,7 +44,7 @@ fi
 # Check 4: Jenkins is not in quiet down (safe mode)
 # The API returns "quietingDown":true when Jenkins is in quiet mode
 echo -n "4. Quiet down check: "
-QUIET_DOWN=$(curl -sf --max-time ${TIMEOUT} "${JENKINS_URL}/api/json" 2>/dev/null | grep -o '"quietingDown":[a-z]*' | head -1 || echo "")
+QUIET_DOWN=$(docker exec "${CONTAINER_NAME}" curl -sf --max-time ${TIMEOUT} "http://localhost:8080/api/json" 2>/dev/null | grep -o '"quietingDown":[a-z]*' | head -1 || echo "")
 if echo "${QUIET_DOWN}" | grep -q '"quietingDown":true'; then
     echo "WARNING - Jenkins is in quiet down mode"
     WARNINGS=$((WARNINGS + 1))
