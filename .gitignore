@@ -32,6 +32,10 @@ Thumbs.db
 # Docker compose override
 docker-compose.override.yml
 
+# Caddy data (certificates, config — persisted in Docker volumes, not Git)
+caddy_data/
+caddy_config/
+
 # Logs
 *.log
 logs/

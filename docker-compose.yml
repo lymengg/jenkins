@@ -3,17 +3,8 @@ services:
     image: jenkins/jenkins:${JENKINS_IMAGE_TAG:-2.568.2-jdk21}
     container_name: jenkins
     restart: unless-stopped
-    ports:
-      - "${JENKINS_PORT:-8080}:8080"
-      # Agent JNLP/TCP port (50000) is NOT exposed by default.
-      # Recommended agent launch methods (SSH, WebSocket) do not require it.
-      # To enable legacy JNLP/TCP agents, create a docker-compose.override.yml
-      # (gitignored) with:
-      #   services:
-      #     jenkins:
-      #       ports:
-      #         - "${JENKINS_AGENT_PORT:-50000}:50000"
-      # See docs/agents.md for details.
+    expose:
+      - "8080"
     environment:
       # JVM flags go in JAVA_OPTS (or JENKINS_JAVA_OPTS), NOT JENKINS_OPTS
       - JAVA_OPTS=${JENKINS_JAVA_OPTS:--Djava.awt.headless=true -Xmx2048m -Xms512m}
@@ -38,8 +29,29 @@ services:
     networks:
       - jenkins
 
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      jenkins:
+        condition: service_healthy
+    networks:
+      - jenkins
+
 volumes:
   jenkins_home:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
     driver: local
 
 networks:

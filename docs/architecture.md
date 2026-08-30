@@ -44,10 +44,10 @@ Persistent Volume (jenkins_home: plugins, config, jobs, credentials)
 
 ```
 Internet
-    ↓
-Reverse Proxy (recommended for production, TLS on :443)
-    ↓
-Jenkins Controller :8080 (HTTP)
+    ↓ (ports 80/443)
+Caddy Reverse Proxy (automatic HTTPS via Let's Encrypt)
+    ↓ (Docker network: jenkins)
+Jenkins Controller :8080 (HTTP, internal only)
 
 Build agents (recommended: SSH launch method)
     Controller ──SSH:22──> Agent host(s)
@@ -77,9 +77,10 @@ Legacy (discouraged): JNLP/TCP :50000
 
 ### Network Security
 
-- Minimal exposed ports (8080 for HTTP; agent port 50000 disabled by default)
-- Reverse proxy recommended for TLS termination
-- Firewall rules should restrict access to Jenkins ports
+- Minimal exposed ports (Caddy publishes 80/443; Jenkins 8080 is internal to Docker network only)
+- Caddy provides automatic TLS certificate management via Let's Encrypt
+- Jenkins is not directly accessible from the public network
+- Firewall rules should restrict access to SSH (22) only; 80/443 are handled by Caddy
 - **Build agents**: prefer the SSH launch method (controller connects to agent on :22, no inbound port on controller). See [Agents](agents.md) for details.
 - **WebSocket inbound** is the recommended fallback when the controller cannot reach the agent (tunnels over :443, no extra inbound port).
 - **JNLP/TCP :50000** is legacy and discouraged; opt in via a `docker-compose.override.yml` (gitignored) that maps the port — see `docker-compose.yml` and [Agents](agents.md) for details.
@@ -137,5 +138,4 @@ Build agents are separate hosts that execute Jenkins jobs. The controller dispat
 - External secret management integration (Vault, AWS Secrets Manager)
 - Monitoring and alerting (Prometheus/Grafana)
 - Log aggregation (ELK/Loki)
-- TLS termination via reverse proxy (nginx/traefik)
 - Automated scheduled backups via cron/systemd timer

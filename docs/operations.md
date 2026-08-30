@@ -28,7 +28,7 @@ docker compose up -d
 
 ### Access Jenkins UI
 
-- URL: http://localhost:8080
+- URL: https://jenkins.ouklymeng.qzz.io/
 - Login with admin credentials
 - Check dashboard for any warnings or errors
 
@@ -207,6 +207,5 @@ See `.env.example` for the full list. Key variables:
 
 - `JENKINS_IMAGE_TAG`: Full base image tag, e.g. `2.568.2-jdk21` (used in docker-compose.yml)
 - `JENKINS_JAVA_OPTS`: JVM flags passed via JAVA_OPTS
-- `JENKINS_PORT`: HTTP port (host mapping)
 - `JENKINS_AGENT_PORT`: Agent port (host mapping)
 - `BACKUP_RETENTION_DAYS`: Backup retention period in days

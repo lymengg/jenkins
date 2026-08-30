@@ -18,8 +18,6 @@ BACKUP_DIR="${BACKUP_DIR:-./backup}"
 TIMESTAMP=$(date +%Y-%m-%d-%H%M%S)
 BACKUP_FILE="jenkins-${TIMESTAMP}.tar.gz"
 CONTAINER_NAME="${CONTAINER_NAME:-jenkins}"
-JENKINS_PORT="${JENKINS_PORT:-8080}"
-JENKINS_URL="${JENKINS_URL:-http://localhost:${JENKINS_PORT}}"
 JENKINS_USER="${JENKINS_USER:-}"
 JENKINS_API_TOKEN="${JENKINS_API_TOKEN:-}"
 LOCK_FILE="${LOCK_FILE:-/tmp/jenkins-backup.lock}"
@@ -29,12 +27,6 @@ exec 9>"${LOCK_FILE}"
 if ! flock -n 9; then
     echo "ERROR: Another backup is already running (lock: ${LOCK_FILE})"
     exit 1
-fi
-
-# Build curl auth args if credentials are provided
-CURL_AUTH_ARGS=()
-if [ -n "${JENKINS_USER}" ] && [ -n "${JENKINS_API_TOKEN}" ]; then
-    CURL_AUTH_ARGS=(-u "${JENKINS_USER}:${JENKINS_API_TOKEN}")
 fi
 
 # Ensure backup directory exists
@@ -51,7 +43,11 @@ fi
 
 # Put Jenkins into quiet down mode to pause new builds for a consistent snapshot
 echo "Putting Jenkins into quiet down mode..."
-if ! curl -fsS "${CURL_AUTH_ARGS[@]}" -X POST "${JENKINS_URL}/quietDown" >/dev/null 2>&1; then
+QUIET_DOWN_ARGS=(-X POST "http://localhost:8080/quietDown")
+if [ -n "${JENKINS_USER}" ] && [ -n "${JENKINS_API_TOKEN}" ]; then
+    QUIET_DOWN_ARGS=(-u "${JENKINS_USER}:${JENKINS_API_TOKEN}" "${QUIET_DOWN_ARGS[@]}")
+fi
+if ! docker exec "${CONTAINER_NAME}" curl -fsS "${QUIET_DOWN_ARGS[@]}" >/dev/null 2>&1; then
     echo "WARN: Could not enter quiet down mode (Jenkins may require auth)."
     echo "      Set JENKINS_USER and JENKINS_API_TOKEN in .env for authenticated quietDown."
     echo "      Continuing without quiet mode."
@@ -85,7 +81,11 @@ fi
 
 # Always resume Jenkins, even if the backup failed
 echo "Resuming Jenkins (cancelling quiet down)..."
-curl -fsS "${CURL_AUTH_ARGS[@]}" -X POST "${JENKINS_URL}/cancelQuietDown" >/dev/null 2>&1 || true
+RESUME_ARGS=(-X POST "http://localhost:8080/cancelQuietDown")
+if [ -n "${JENKINS_USER}" ] && [ -n "${JENKINS_API_TOKEN}" ]; then
+    RESUME_ARGS=(-u "${JENKINS_USER}:${JENKINS_API_TOKEN}" "${RESUME_ARGS[@]}")
+fi
+docker exec "${CONTAINER_NAME}" curl -fsS "${RESUME_ARGS[@]}" >/dev/null 2>&1 || true
 
 if [ "${CLEANUP_EXIT}" -ne 0 ]; then
     rm -f "${BACKUP_DIR}/${BACKUP_FILE}"
